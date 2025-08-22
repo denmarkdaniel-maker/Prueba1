@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Solicitudes de Mantenimiento — Canvas con Usuarios y Aprobación</title>
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <style>
+    html, body { height: 100%; margin: 0; }
+    body { display: grid; place-items: center; background: #0f172a; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; color: #e5e7eb; }
+    .wrap { width: min(1100px, 96vw); }
+    .bar { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap; }
+    .bar h1 { font-size: clamp(18px, 3vw, 26px); margin: 0; font-weight: 700; letter-spacing: 0.2px; }
+    .bar .actions { display:flex; gap:8px; flex-wrap: wrap; align-items: center; }
+    button, a.btn, select { border: 0; padding: 10px 12px; border-radius: 10px; background:#22c55e; color:#0b1220; font-weight:700; cursor:pointer; text-decoration:none; }
+    select { background:#1f2937; color:#e5e7eb; border:1px solid #334155; }
+    button.secondary { background:#334155; color:#e5e7eb; }
+    button.warn { background:#ef4444; color:#0b1220; }
+    canvas { width: 100%; height: auto; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); background: #0b1220; }
+    input.hidden-input, input.date-input { position: absolute; opacity: 0; pointer-events: none; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="bar">
+      <h1>Solicitud de Equipo para Mantenimiento — UI en Canvas</h1>
+      <div class="actions">
+        <label for="userSelect" style="color:#94a3b8;font-weight:600">Usuario:</label>
+        <select id="userSelect" title="Selecciona usuario"></select>
+        <button id="btnAddUser" class="secondary" title="Agregar nuevo usuario">Agregar usuario</button>
+        <button id="btnDescargar" class="secondary" title="Descargar CSV">Descargar CSV</button>
+        <button id="btnLimpiar" class="warn" title="Vaciar todas las solicitudes">Vaciar todo</button>
+      </div>
+    </div>
+    <canvas id="appCanvas" width="1200" height="900" aria-label="Formulario de solicitudes"></canvas>
+  </div>
+
+  <input id="textInput" class="hidden-input" type="text" autocomplete="off" />
+  <input id="dateInput" class="date-input" type="date" />
+
+<script>
+(function(){
+  var canvas = document.getElementById('appCanvas');
+  var ctx = canvas.getContext('2d');
+  var W = canvas.width; var H = canvas.height;
+
+  // Usuarios simples en localStorage
+  var LS_USERS_KEY = 'mant_users_v1';
+  var LS_CURR_USER_KEY = 'mant_current_user_v1';
+  var DEFAULT_USERS = [
+    { id: 'u1', nombre: 'Operador Demo', username: 'operador', rol: 'solicitante' },
+    { id: 'u2', nombre: 'Jefe de Operaciones', username: 'aprobador', rol: 'aprobador' }
+  ];
+  function getUsers(){
+    try { var u = JSON.parse(localStorage.getItem(LS_USERS_KEY) || '[]'); return u.length ? u : DEFAULT_USERS.slice(); } catch(e){ return DEFAULT_USERS.slice(); }
+  }
+  function saveUsers(list){ localStorage.setItem(LS_USERS_KEY, JSON.stringify(list)); populateUserSelect(); }
+  function getCurrentUser(){ var users = getUsers(); try { var id = localStorage.getItem(LS_CURR_USER_KEY); var found = users.find(function(x){ return x.id === id; }); return found || users[0]; } catch(e){ return users[0]; } }
+  function setCurrentUser(id){ localStorage.setItem(LS_CURR_USER_KEY, id); render(); }
+  function addUser(nombre, username, rol){ var users = getUsers(); var id = 'u' + Math.random().toString(36).slice(2,9); users.push({id:id, nombre:nombre, username:username, rol:rol}); saveUsers(users); setCurrentUser(id); }
+  function populateUserSelect(){ var sel = document.getElementById('userSelect'); var users = getUsers(); sel.innerHTML = ''; users.forEach(function(u){ var opt = document.createElement('option'); opt.value = u.id; opt.textContent = u.nombre + ' (' + u.rol + ')'; sel.appendChild(opt); }); sel.value = getCurrentUser().id; }
+
+  // Estado de la app
+  var state = { focusKey: null, toast: null, fields: { equipo:'', detalle:'', mantenedor:'', fecha:'' }, boxes: {}, rowBoxes: {} };
+
+  // Helpers de dibujo
+  function setFont(size, weight){ if(!size) size = 18; if(!weight) weight = 'normal'; ctx.font = weight + ' ' + size + 'px ui-sans-serif, system-ui'; }
+  function fillPath(f, color){ ctx.fillStyle = color; f(); }
+  function strokePath(f, color, width){ if(!width) width = 1; ctx.lineWidth = width; ctx.strokeStyle = color; f(true); }
+  function roundRectPath(x,y,w,h,r){ if(!r) r = 12; return function(drawStroke){ ctx.beginPath(); ctx.moveTo(x+r, y); ctx.arcTo(x+w, y, x+w, y+h, r); ctx.arcTo(x+w, y+h, x, y+h, r); ctx.arcTo(x, y+h, x, y, r); ctx.arcTo(x, y, x+w, y, r); ctx.closePath(); if(drawStroke) ctx.stroke(); else ctx.fill(); } }
+  function shadow(f){ ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 12; ctx.shadowOffsetY = 6; f(); ctx.restore(); }
+  function label(text, x, y){ setFont(16,'600'); ctx.fillStyle = '#cbd5e1'; ctx.fillText(text, x, y); }
+  function wrapText(text, x, y, maxWidth, lineHeight){ var words = String(text || '').split(' '); var line = ''; for(var n=0;n<words.length;n++){ var testLine = line ? line + ' ' + words[n] : words[n]; var m = ctx.measureText(testLine); if(m.width > maxWidth && line){ ctx.fillText(line, x, y); line = words[n]; y += lineHeight; } else { line = testLine; } } if(line) ctx.fillText(line, x, y); }
+  function drawButton(text, x, y, w, h, type){ var colors = ['#334155','#0f172a']; if(type==='primary') colors = ['#22c55e','#064e3b']; if(type==='danger') colors = ['#ef4444','#3f1212']; var rr = roundRectPath(x,y,w,h,12); fillPath(rr, colors[1]); strokePath(rr, colors[0], 2); setFont(16,'700'); ctx.fillStyle = '#e5e7eb'; var tw = ctx.measureText(text).width; ctx.fillText(text, x + (w - tw)/2, y + h/2 + 6); return {x:x,y:y,w:w,h:h}; }
+  function drawChip(text, x, y, color){ var padX=10; setFont(14,'700'); var tw = ctx.measureText(text).width; var rr = roundRectPath(x, y-16, tw+padX*2, 26, 12); fillPath(rr, color); ctx.fillStyle = '#0b1220'; ctx.fillText(text, x+padX, y+4); }
+
+  // Datos
+  var LS_REQ_KEY = 'solicitudes_mant_canvas_v2';
+  function getAll(){ try { var arr = JSON.parse(localStorage.getItem(LS_REQ_KEY) || '[]'); return arr.map(upgradeReq); } catch(e){ return []; } }
+  function saveAll(list){ localStorage.setItem(LS_REQ_KEY, JSON.stringify(list)); }
+  function saveOne(item){ var all = getAll(); all.push(item); saveAll(all); }
+  function clearAll(){ localStorage.removeItem(LS_REQ_KEY); }
+  function upgradeReq(r){ if(!r.id){ r.id = 'REQ-' + (r.createdAt || Date.now()); } if(!r.estado){ r.estado = 'Pendiente'; } if(!r.creadaPor){ r.creadaPor = 'desconocido'; } return r; }
+
+  // Render
+  var btnEnviar = null; var btnNuevo = null;
+  function drawBG(){ shadow(function(){ fillPath(roundRectPath(24,24,W-48,H-48,20), '#111827'); }); setFont(26,'700'); ctx.fillStyle = '#e5e7eb'; ctx.fillText('Formulario de solicitud', 48, 74); setFont(14); ctx.fillStyle = '#94a3b8'; ctx.fillText('Complete los campos y presione “Enviar solicitud”.', 48, 98); var u = getCurrentUser(); setFont(14,'700'); ctx.fillStyle = '#a3e635'; ctx.fillText('Usuario actual: ' + u.nombre + ' (' + u.rol + ')', W-420, 74); }
+  function drawForm(){ var left = 48; var top = 120; var colW = W - 96; label('1) Equipo requerido', left, top+10); drawInput('equipo', left, top+22, colW, 56); label('2) Detalle del trabajo', left, top+106); drawInput('detalle', left, top+118, colW, 180, true); label('3) Mantenedor a cargo', left, top+322); drawInput('mantenedor', left, top+334, colW * 0.6 - 8, 56); label('4) Fecha de la solicitud', left + colW * 0.6 + 8, top+322); drawInput('fecha', left + colW * 0.6 + 8, top+334, colW * 0.4 - 8, 56); btnEnviar = drawButton('Enviar solicitud', left, 412, 220, 50, 'primary'); btnNuevo  = drawButton('Nuevo', left + 240, 412, 140, 50, 'secondary'); }
+  function drawInput(key, x, y, w, h, multiline){ var focused = state.focusKey === key; var rr = roundRectPath(x,y,w,h,12); fillPath(rr, '#0b1220'); strokePath(rr, focused ? '#22c55e' : '#334155', focused?2:1); setFont(18); ctx.fillStyle = '#e5e7eb'; var pad = 14; var text = String(state.fields[key] || ''); if(multiline){ wrapText(text, x+pad, y+pad+18, w-pad*2, 22); } else { ctx.fillText(text, x+pad, y + h/2 + 7); } if(!text){ setFont(16); ctx.fillStyle = '#64748b'; var ph = {equipo:'Ej: Bomba 12A', detalle:'Describa el trabajo a realizar…', mantenedor:'Nombre y apellido', fecha:'AAAA-MM-DD'}[key]; if(multiline){ wrapText(ph, x+pad, y+pad+18, w-pad*2, 22); } else { ctx.fillText(ph, x+pad, y + h/2 + 6); } } state.boxes[key] = {x:x,y:y,w:w,h:h}; }
+  function drawLists(){ var u = getCurrentUser(); var all = getAll(); var listTop = 490; var panelH = H - listTop - 70; var panelW = W - 96; var left = 48; shadow(function(){ fillPath(roundRectPath(left, listTop, panelW, panelH, 16), '#0b1220'); }); setFont(20,'700'); ctx.fillStyle = '#e5e7eb'; var title = u.rol === 'aprobador' ? 'Bandeja de Aprobación' : 'Mis solicitudes'; ctx.fillText(title, left+16, listTop+32); setFont(14); ctx.fillStyle = '#94a3b8'; var subset = u.rol === 'aprobador' ? all.filter(function(r){ return r.estado === 'Pendiente'; }) : all.filter(function(r){ return r.creadaPor === u.username || r.creadaPor === u.nombre; }); var hint = u.rol === 'aprobador' ? 'Pendientes: ' + subset.length : 'Total: ' + subset.length; ctx.fillText(hint, left+16, listTop+52);
+    var cols = [ {key:'id', label:'ID', w:110}, {key:'equipo', label:'Equipo', w:240}, {key:'mantenedor', label:'Mantenedor', w:180}, {key:'fecha', label:'Fecha', w:120}, {key:'estado', label:'Estado', w:130}, {key:'acciones', label:(u.rol==='aprobador'?'Acciones':' '), w:210} ];
+    var x = left+16; var y = listTop+78; setFont(14,'700'); ctx.fillStyle = '#cbd5e1'; cols.forEach(function(c){ ctx.fillText(c.label, x, y); x += c.w; });
+    state.rowBoxes = {}; y += 14; var rowH = 44; var maxRows = Math.floor((panelH - 110)/rowH);
+    subset.slice(0, maxRows).forEach(function(r, idx){ var ry = y + idx*rowH; ctx.fillStyle = idx % 2 ? '#0b1d2e' : '#0f172a'; ctx.fillRect(left+8, ry-18, panelW-16, rowH); var cx = left+16; setFont(14); ctx.fillStyle = '#e5e7eb'; ctx.fillText(String(r.id).slice(0,12), cx, ry); cx += cols[0].w; ctx.fillText(String(r.equipo).slice(0,26), cx, ry); cx += cols[1].w; ctx.fillText(String(r.mantenedor).slice(0,22), cx, ry); cx += cols[2].w; ctx.fillText(String(r.fecha), cx, ry); cx += cols[3].w; if(r.estado === 'Aprobada'){ drawChip('Aprobada', cx, ry, '#16a34a'); } else if(r.estado === 'Rechazada'){ drawChip('Rechazada', cx, ry, '#ef4444'); } else { drawChip('Pendiente', cx, ry, '#eab308'); } cx += cols[4].w; if(u.rol === 'aprobador' && r.estado === 'Pendiente'){ var b1 = drawButton('Aprobar', cx, ry-26, 96, 34, 'primary'); var b2 = drawButton('Rechazar', cx+110, ry-26, 96, 34, 'danger'); state.rowBoxes['approve:' + r.id] = b1; state.rowBoxes['reject:' + r.id] = b2; } }); }
+  function render(){ ctx.clearRect(0,0,W,H); drawBG(); drawForm(); setFont(14); ctx.fillStyle = '#94a3b8'; var total = getAll().length; ctx.fillText('Solicitudes guardadas: ' + total, W - 260, 428); if(state.toast && Date.now() < state.toast.until){ var msg = state.toast.msg; ctx.save(); shadow(function(){ fillPath(roundRectPath(W-480, 40, 420, 52, 12), '#16a34a'); }); setFont(16,'700'); ctx.fillStyle = '#052e1a'; ctx.fillText('✓', W-462, 73); ctx.fillStyle = '#052e1a'; ctx.fillText(msg, W-440, 73); ctx.restore(); } drawLists(); }
+
+  // Entradas nativas
+  var textInput = document.getElementById('textInput'); var dateInput = document.getElementById('dateInput');
+  function focusField(key){ state.focusKey = key; positionNativeInput(key); render(); }
+  function blurInputs(){ state.focusKey = null; textInput.style.opacity = 0; textInput.style.pointerEvents = 'none'; dateInput.style.opacity = 0; dateInput.style.pointerEvents = 'none'; render(); }
+  function positionNativeInput(key){ var b = state.boxes[key]; if(!b) return; var rect = canvas.getBoundingClientRect(); var px = rect.left + (b.x / W) * rect.width; var py = rect.top + (b.y / H) * rect.height; var pw = (b.w / W) * rect.width; var ph = (b.h / H) * rect.height; if(key === 'fecha'){ dateInput.style.left = String(px + 10) + 'px'; dateInput.style.top = String(py + 10) + 'px'; dateInput.style.width = String(pw - 20) + 'px'; dateInput.style.height = String(ph - 20) + 'px'; dateInput.value = state.fields.fecha || ''; dateInput.style.opacity = 1; dateInput.style.pointerEvents = 'auto'; dateInput.focus(); } else { textInput.type = 'text'; textInput.style.left = String(px + 10) + 'px'; textInput.style.top = String(py + 10) + 'px'; textInput.style.width = String(pw - 20) + 'px'; textInput.style.height = String(ph - 20) + 'px'; textInput.value = state.fields[key] || ''; textInput.maxLength = key === 'detalle' ? 500 : 120; textInput.style.opacity = 1; textInput.style.pointerEvents = 'auto'; textInput.focus(); } }
+
+  canvas.addEventListener('click', function(e){ var rect = canvas.getBoundingClientRect(); var x = (e.clientX - rect.left) * (W / rect.width); var y = (e.clientY - rect.top) * (H / rect.height); var p = {x:x, y:y}; var k; for(k in state.boxes){ var b = state.boxes[k]; if(p.x>=b.x && p.x<=b.x+b.w && p.y>=b.y && p.y<=b.y+b.h){ focusField(k); return; } }
+    if(btnEnviar && p.x>=btnEnviar.x && p.x<=btnEnviar.x+btnEnviar.w && p.y>=btnEnviar.y && p.y<=btnEnviar.y+btnEnviar.h){ handleSubmit(); return; }
+    if(btnNuevo && p.x>=btnNuevo.x && p.x<=btnNuevo.x+btnNuevo.w && p.y>=btnNuevo.y && p.y<=btnNuevo.y+btnNuevo.h){ handleNuevo(); return; }
+    for(k in state.rowBoxes){ var bb = state.rowBoxes[k]; if(p.x>=bb.x && p.x<=bb.x+bb.w && p.y>=bb.y && p.y<=bb.y+bb.h){ var parts = k.split(':'); if(parts[0]==='approve') approveRequest(parts[1]); else if(parts[0]==='reject') rejectRequest(parts[1]); return; } }
+    blurInputs();
+  });
+
+  function handleSubmit(){ var u = getCurrentUser(); var f = state.fields; if(!f.equipo || !f.detalle || !f.mantenedor || !f.fecha){ showToast('Complete todos los campos.'); return; } var now = new Date(); var item = { id: 'REQ-' + now.getTime(), equipo: f.equipo, detalle: f.detalle, mantenedor: f.mantenedor, fecha: f.fecha, estado: 'Pendiente', creadaPor: u.username || u.nombre, aprobador: null, fechaAprob: null, motivoRechazo: null, createdAt: now.toISOString() }; saveOne(item); showToast('Solicitud enviada y en estado Pendiente.'); handleNuevo(); }
+  function handleNuevo(){ state.fields = {equipo:'', detalle:'', mantenedor:'', fecha:''}; blurInputs(); render(); }
+  function approveRequest(id){ var u = getCurrentUser(); var all = getAll(); var i = all.findIndex(function(r){ return String(r.id) === String(id); }); if(i<0) return; all[i].estado = 'Aprobada'; all[i].aprobador = u.username || u.nombre; all[i].fechaAprob = new Date().toISOString(); all[i].motivoRechazo = null; saveAll(all); showToast('Solicitud ' + id + ' aprobada.'); render(); }
+  function rejectRequest(id){ var motivo = prompt('Indique motivo de rechazo:'); var u = getCurrentUser(); var all = getAll(); var i = all.findIndex(function(r){ return String(r.id) === String(id); }); if(i<0) return; all[i].estado = 'Rechazada'; all[i].aprobador = u.username || u.nombre; all[i].fechaAprob = new Date().toISOString(); all[i].motivoRechazo = String(motivo || ''); saveAll(all); showToast('Solicitud ' + id + ' rechazada.'); render(); }
+
+  function showToast(msg){ state.toast = {msg: msg, until: Date.now() + 2200}; render(); }
+
+  // Botones de cabecera
+  document.getElementById('btnDescargar').addEventListener('click', function(){ var rows = getAll(); if(rows.length===0){ showToast('No hay solicitudes para exportar.'); return; } var header = ['id','equipo','detalle','mantenedor','fecha','estado','creadaPor','aprobador','fechaAprob','motivoRechazo','createdAt']; var NL = String.fromCharCode(10); function esc(v){ var s = String(v); s = s.split('"').join('""'); var need = s.indexOf(',')>-1 || s.indexOf(NL)>-1 || s.indexOf('"')>-1; return need ? '"' + s + '"' : s; } var csv = [header.join(',')].concat(rows.map(function(r){ return header.map(function(h){ return esc(r[h] == null ? '' : r[h]); }).join(','); })).join(NL); var blob = new Blob([csv], {type:'text/csv;charset=utf-8;'}); var url = URL.createObjectURL(blob); var a = document.createElement('a'); a.href = url; a.download = 'solicitudes_mantenimiento.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); });
+  document.getElementById('btnLimpiar').addEventListener('click', function(){ if(confirm('¿Seguro que desea eliminar todas las solicitudes guardadas?')){ clearAll(); render(); } });
+  document.getElementById('btnAddUser').addEventListener('click', function(){ var nombre = prompt('Nombre del usuario:'); if(!nombre) return; var username = prompt('Usuario de inicio de sesión:'); if(!username) username = nombre.toLowerCase().split(' ').join('.'); var rol = prompt('Rol: escriba solicitante o aprobador','solicitante'); if(!rol) return; rol = rol.toLowerCase().trim(); if(rol!=='solicitante' && rol!=='aprobador'){ alert('Rol no válido'); return; } addUser(nombre, username, rol); });
+  document.getElementById('userSelect').addEventListener('change', function(e){ setCurrentUser(e.target.value); });
+
+  // Inicialización
+  populateUserSelect();
+  render();
+  window.addEventListener('resize', function(){ if(state.focusKey) positionNativeInput(state.focusKey); });
+})();
+</script>
+</body>
+</html>
