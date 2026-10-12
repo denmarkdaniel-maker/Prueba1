@@ -34,6 +34,7 @@ object DailySummary {
     const val SUENO = "sueno_horas"
     const val EJERCICIO = "ejercicio_min"
     const val PESO = "peso_kg"
+    const val ESTRES = "estres_promedio"
 
     class Column<T : Any>(
         val header: String,
