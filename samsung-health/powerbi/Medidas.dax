@@ -1,0 +1,21 @@
+// Medidas DAX sugeridas sobre la tabla ResumenDiario
+
+Pasos Prom Diario = AVERAGE ( ResumenDiario[pasos] )
+
+Días ≥ 10.000 pasos % =
+DIVIDE (
+    COUNTROWS ( FILTER ( ResumenDiario, ResumenDiario[pasos] >= 10000 ) ),
+    COUNTROWS ( FILTER ( ResumenDiario, NOT ISBLANK ( ResumenDiario[pasos] ) ) )
+)
+
+Sueño Prom (h) = AVERAGE ( ResumenDiario[sueno_horas] )
+
+Pasos Media Móvil 7d =
+AVERAGEX (
+    DATESINPERIOD ( ResumenDiario[fecha], MAX ( ResumenDiario[fecha] ), -7, DAY ),
+    CALCULATE ( SUM ( ResumenDiario[pasos] ) )
+)
+
+Peso Último (kg) =
+VAR UltimaFecha = CALCULATE ( MAX ( ResumenDiario[fecha] ), NOT ISBLANK ( ResumenDiario[peso_kg] ) )
+RETURN CALCULATE ( AVERAGE ( ResumenDiario[peso_kg] ), ResumenDiario[fecha] = UltimaFecha )

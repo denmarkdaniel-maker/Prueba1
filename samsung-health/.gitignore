@@ -1,0 +1,6 @@
+# Datos personales de salud: nunca al repositorio
+salida*/
+salud_*.csv
+samsunghealth_*/
+*.xlsx
+__pycache__/

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Exportar Samsung Health</string>
+    <string name="privacy_text">Esta app lee tus datos de salud desde Health Connect (incluidos los que sincroniza Samsung Health) solo para generar archivos CSV en la carpeta Descargas de este teléfono. No envía datos a internet ni a terceros. Puedes revocar el acceso en cualquier momento desde Ajustes → Health Connect.</string>
+</resources>
