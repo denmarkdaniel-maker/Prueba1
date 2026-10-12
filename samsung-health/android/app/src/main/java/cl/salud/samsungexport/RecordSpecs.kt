@@ -96,30 +96,34 @@ private val EXERCISE_TYPES = mapOf(
     ExerciseSessionRecord.EXERCISE_TYPE_STAIR_CLIMBING to "Escaleras",
 )
 
+// Las interfaces IntervalRecord / InstantaneousRecord son internas en Health Connect,
+// por eso los helpers reciben los campos y no el registro.
 private fun interval(
-    tipo: String, r: IntervalRecord, valor: Double?, unidad: String, detalle: String = "",
-) = Row(tipo, r.startTime, r.endTime, r.startZoneOffset, valor, unidad, detalle, r.metadata)
+    tipo: String, start: Instant, end: Instant, offset: ZoneOffset?, meta: Metadata,
+    valor: Double?, unidad: String, detalle: String = "",
+) = Row(tipo, start, end, offset, valor, unidad, detalle, meta)
 
 private fun instant(
-    tipo: String, r: InstantaneousRecord, valor: Double?, unidad: String, detalle: String = "",
-) = Row(tipo, r.time, null, r.zoneOffset, valor, unidad, detalle, r.metadata)
+    tipo: String, time: Instant, offset: ZoneOffset?, meta: Metadata,
+    valor: Double?, unidad: String, detalle: String = "",
+) = Row(tipo, time, null, offset, valor, unidad, detalle, meta)
 
 /** Todos los tipos que se exportan. Agregar uno nuevo = agregar una línea aquí y su permiso en el Manifest. */
 val RECORD_SPECS: List<RecordSpec<*>> = listOf(
     // Actividad
-    RecordSpec(StepsRecord::class, "Pasos") { listOf(interval("Pasos", it, it.count.toDouble(), "pasos")) },
-    RecordSpec(DistanceRecord::class, "Distancia") { listOf(interval("Distancia", it, it.distance.inMeters, "m")) },
+    RecordSpec(StepsRecord::class, "Pasos") { listOf(interval("Pasos", it.startTime, it.endTime, it.startZoneOffset, it.metadata, it.count.toDouble(), "pasos")) },
+    RecordSpec(DistanceRecord::class, "Distancia") { listOf(interval("Distancia", it.startTime, it.endTime, it.startZoneOffset, it.metadata, it.distance.inMeters, "m")) },
     RecordSpec(ActiveCaloriesBurnedRecord::class, "Calorías activas") {
-        listOf(interval("Calorías activas", it, it.energy.inKilocalories, "kcal"))
+        listOf(interval("Calorías activas", it.startTime, it.endTime, it.startZoneOffset, it.metadata, it.energy.inKilocalories, "kcal"))
     },
     RecordSpec(TotalCaloriesBurnedRecord::class, "Calorías totales") {
-        listOf(interval("Calorías totales", it, it.energy.inKilocalories, "kcal"))
+        listOf(interval("Calorías totales", it.startTime, it.endTime, it.startZoneOffset, it.metadata, it.energy.inKilocalories, "kcal"))
     },
-    RecordSpec(FloorsClimbedRecord::class, "Pisos") { listOf(interval("Pisos", it, it.floors, "pisos")) },
-    RecordSpec(ElevationGainedRecord::class, "Desnivel") { listOf(interval("Desnivel", it, it.elevation.inMeters, "m")) },
+    RecordSpec(FloorsClimbedRecord::class, "Pisos") { listOf(interval("Pisos", it.startTime, it.endTime, it.startZoneOffset, it.metadata, it.floors, "pisos")) },
+    RecordSpec(ElevationGainedRecord::class, "Desnivel") { listOf(interval("Desnivel", it.startTime, it.endTime, it.startZoneOffset, it.metadata, it.elevation.inMeters, "m")) },
     RecordSpec(ExerciseSessionRecord::class, "Ejercicio") {
         val tipo = EXERCISE_TYPES[it.exerciseType] ?: "Tipo ${it.exerciseType}"
-        listOf(interval("Ejercicio", it, minutes(it.startTime, it.endTime), "min",
+        listOf(interval("Ejercicio", it.startTime, it.endTime, it.startZoneOffset, it.metadata, minutes(it.startTime, it.endTime), "min",
             listOfNotNull(tipo, it.title).joinToString(" | ")))
     },
     RecordSpec(SpeedRecord::class, "Velocidad") { r ->
@@ -129,7 +133,7 @@ val RECORD_SPECS: List<RecordSpec<*>> = listOf(
         r.samples.map { Row("Potencia", it.time, null, r.startZoneOffset, it.power.inWatts, "W", "", r.metadata) }
     },
     RecordSpec(Vo2MaxRecord::class, "VO2 máx") {
-        listOf(instant("VO2 máx", it, it.vo2MillilitersPerMinuteKilogram, "ml/kg/min"))
+        listOf(instant("VO2 máx", it.time, it.zoneOffset, it.metadata, it.vo2MillilitersPerMinuteKilogram, "ml/kg/min"))
     },
 
     // Corazón y signos vitales
@@ -137,31 +141,31 @@ val RECORD_SPECS: List<RecordSpec<*>> = listOf(
         r.samples.map { Row("Frecuencia cardíaca", it.time, null, r.startZoneOffset, it.beatsPerMinute.toDouble(), "lpm", "", r.metadata) }
     },
     RecordSpec(RestingHeartRateRecord::class, "FC en reposo") {
-        listOf(instant("FC en reposo", it, it.beatsPerMinute.toDouble(), "lpm"))
+        listOf(instant("FC en reposo", it.time, it.zoneOffset, it.metadata, it.beatsPerMinute.toDouble(), "lpm"))
     },
     RecordSpec(HeartRateVariabilityRmssdRecord::class, "VFC (RMSSD)") {
-        listOf(instant("VFC (RMSSD)", it, it.heartRateVariabilityMillis, "ms"))
+        listOf(instant("VFC (RMSSD)", it.time, it.zoneOffset, it.metadata, it.heartRateVariabilityMillis, "ms"))
     },
-    RecordSpec(OxygenSaturationRecord::class, "SpO2") { listOf(instant("SpO2", it, it.percentage.value, "%")) },
+    RecordSpec(OxygenSaturationRecord::class, "SpO2") { listOf(instant("SpO2", it.time, it.zoneOffset, it.metadata, it.percentage.value, "%")) },
     RecordSpec(RespiratoryRateRecord::class, "Frecuencia respiratoria") {
-        listOf(instant("Frecuencia respiratoria", it, it.rate, "rpm"))
+        listOf(instant("Frecuencia respiratoria", it.time, it.zoneOffset, it.metadata, it.rate, "rpm"))
     },
     RecordSpec(BloodPressureRecord::class, "Presión arterial") {
         listOf(
-            instant("Presión sistólica", it, it.systolic.inMillimetersOfMercury, "mmHg"),
-            instant("Presión diastólica", it, it.diastolic.inMillimetersOfMercury, "mmHg"),
+            instant("Presión sistólica", it.time, it.zoneOffset, it.metadata, it.systolic.inMillimetersOfMercury, "mmHg"),
+            instant("Presión diastólica", it.time, it.zoneOffset, it.metadata, it.diastolic.inMillimetersOfMercury, "mmHg"),
         )
     },
     RecordSpec(BloodGlucoseRecord::class, "Glucosa") {
-        listOf(instant("Glucosa", it, it.level.inMilligramsPerDeciliter, "mg/dL"))
+        listOf(instant("Glucosa", it.time, it.zoneOffset, it.metadata, it.level.inMilligramsPerDeciliter, "mg/dL"))
     },
     RecordSpec(BodyTemperatureRecord::class, "Temperatura corporal") {
-        listOf(instant("Temperatura corporal", it, it.temperature.inCelsius, "°C"))
+        listOf(instant("Temperatura corporal", it.time, it.zoneOffset, it.metadata, it.temperature.inCelsius, "°C"))
     },
 
     // Sueño: una fila por sesión + una fila por etapa
     RecordSpec(SleepSessionRecord::class, "Sueño") { r ->
-        listOf(interval("Sueño", r, minutes(r.startTime, r.endTime) / 60.0, "h", r.title ?: "")) +
+        listOf(interval("Sueño", r.startTime, r.endTime, r.startZoneOffset, r.metadata, minutes(r.startTime, r.endTime) / 60.0, "h", r.title ?: "")) +
             r.stages.map {
                 Row("Sueño - etapa", it.startTime, it.endTime, r.startZoneOffset,
                     minutes(it.startTime, it.endTime), "min", SLEEP_STAGES[it.stage] ?: "Etapa ${it.stage}", r.metadata)
@@ -169,18 +173,18 @@ val RECORD_SPECS: List<RecordSpec<*>> = listOf(
     },
 
     // Composición corporal
-    RecordSpec(WeightRecord::class, "Peso") { listOf(instant("Peso", it, it.weight.inKilograms, "kg")) },
-    RecordSpec(HeightRecord::class, "Estatura") { listOf(instant("Estatura", it, it.height.inMeters, "m")) },
-    RecordSpec(BodyFatRecord::class, "Grasa corporal") { listOf(instant("Grasa corporal", it, it.percentage.value, "%")) },
-    RecordSpec(LeanBodyMassRecord::class, "Masa magra") { listOf(instant("Masa magra", it, it.mass.inKilograms, "kg")) },
-    RecordSpec(BoneMassRecord::class, "Masa ósea") { listOf(instant("Masa ósea", it, it.mass.inKilograms, "kg")) },
-    RecordSpec(BodyWaterMassRecord::class, "Agua corporal") { listOf(instant("Agua corporal", it, it.mass.inKilograms, "kg")) },
+    RecordSpec(WeightRecord::class, "Peso") { listOf(instant("Peso", it.time, it.zoneOffset, it.metadata, it.weight.inKilograms, "kg")) },
+    RecordSpec(HeightRecord::class, "Estatura") { listOf(instant("Estatura", it.time, it.zoneOffset, it.metadata, it.height.inMeters, "m")) },
+    RecordSpec(BodyFatRecord::class, "Grasa corporal") { listOf(instant("Grasa corporal", it.time, it.zoneOffset, it.metadata, it.percentage.value, "%")) },
+    RecordSpec(LeanBodyMassRecord::class, "Masa magra") { listOf(instant("Masa magra", it.time, it.zoneOffset, it.metadata, it.mass.inKilograms, "kg")) },
+    RecordSpec(BoneMassRecord::class, "Masa ósea") { listOf(instant("Masa ósea", it.time, it.zoneOffset, it.metadata, it.mass.inKilograms, "kg")) },
+    RecordSpec(BodyWaterMassRecord::class, "Agua corporal") { listOf(instant("Agua corporal", it.time, it.zoneOffset, it.metadata, it.mass.inKilograms, "kg")) },
     RecordSpec(BasalMetabolicRateRecord::class, "Metabolismo basal") {
-        listOf(instant("Metabolismo basal", it, it.basalMetabolicRate.inKilocaloriesPerDay, "kcal/día"))
+        listOf(instant("Metabolismo basal", it.time, it.zoneOffset, it.metadata, it.basalMetabolicRate.inKilocaloriesPerDay, "kcal/día"))
     },
 
     // Nutrición
-    RecordSpec(HydrationRecord::class, "Hidratación") { listOf(interval("Hidratación", it, it.volume.inLiters, "L")) },
+    RecordSpec(HydrationRecord::class, "Hidratación") { listOf(interval("Hidratación", it.startTime, it.endTime, it.startZoneOffset, it.metadata, it.volume.inLiters, "L")) },
     RecordSpec(NutritionRecord::class, "Nutrición") {
         val macros = listOfNotNull(
             it.name,
@@ -188,6 +192,6 @@ val RECORD_SPECS: List<RecordSpec<*>> = listOf(
             it.totalCarbohydrate?.let { c -> "carbohidratos %.1f g".format(java.util.Locale.ROOT, c.inGrams) },
             it.totalFat?.let { f -> "grasa %.1f g".format(java.util.Locale.ROOT, f.inGrams) },
         ).joinToString(" | ")
-        listOf(interval("Nutrición", it, it.energy?.inKilocalories, "kcal", macros))
+        listOf(interval("Nutrición", it.startTime, it.endTime, it.startZoneOffset, it.metadata, it.energy?.inKilocalories, "kcal", macros))
     },
 )
