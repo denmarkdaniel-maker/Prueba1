@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "cl.salud.samsungexport"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "cl.salud.samsungexport"
