@@ -40,10 +40,11 @@ android {
 }
 
 dependencies {
-    // AAR del Samsung Health Data SDK, descargado manualmente desde developer.samsung.com
-    // y copiado en android/app/libs/ (ver android/README.md).
-    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.aar"))))
+    // Health Connect: lectura de datos que Samsung Health sincroniza.
+    implementation("androidx.health.connect:connect-client:1.1.0-alpha07")
 
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("androidx.activity:activity-ktx:1.9.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.3")
 }
