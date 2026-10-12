@@ -39,12 +39,13 @@ class DashboardActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(16), dp(16), dp(32)) }
-        setContentView(ScrollView(this).apply { setBackgroundColor(0xFFF8FAFC.toInt()); addView(content) })
+        showScreen(ScrollView(this).apply { addView(content) })
         load()
     }
 
     private fun load() {
         content.removeAllViews()
+        content.addView(screenTitle("Mi análisis de salud"))
         content.addView(periodSelector())
         content.addView(label("Cargando…", 14f))
         lifecycleScope.launch {
@@ -57,7 +58,7 @@ class DashboardActivity : ComponentActivity() {
                     DailySummary.query(client, cols, today.minusDays(2L * periodDays - 1), today.plusDays(1))
                 }
             }
-            content.removeViews(1, content.childCount - 1)
+            content.removeViews(2, content.childCount - 2)
             result.onSuccess { render(it) }.onFailure { content.addView(label("✖ ${it.message}", 14f)) }
         }
     }

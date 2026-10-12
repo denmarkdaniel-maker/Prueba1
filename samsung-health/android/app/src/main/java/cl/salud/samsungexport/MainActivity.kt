@@ -37,7 +37,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun buildUi() {
-        status = TextView(this).apply { textSize = 14f }
+        status = TextView(this).apply { textSize = 14f; setTextColor(0xFF334155.toInt()) }
+        val help = TextView(this).apply {
+            text = "Empieza por el botón 1 y acepta «Permitir todo» y «Acceder a datos anteriores»."
+            textSize = 14f
+            setTextColor(0xFF64748B.toInt())
+        }
         val btnPermissions = Button(this).apply {
             text = "1. Conceder permisos"
             setOnClickListener { requestPermissions.launch(HealthExporter.ALL_PERMISSIONS) }
@@ -60,13 +65,15 @@ class MainActivity : ComponentActivity() {
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(40, 40, 40, 40)
+            addView(screenTitle("Exportar Samsung Health"))
+            addView(help)
             addView(btnPermissions)
             addView(btnExport)
             addView(btnDashboard)
             addView(btnShare)
             addView(status)
         }
-        setContentView(ScrollView(this).apply { addView(layout) })
+        showScreen(ScrollView(this).apply { addView(layout) })
     }
 
     private fun connect() {
