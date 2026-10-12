@@ -1,0 +1,7 @@
+local.properties
+*.iml
+.gradle/
+build/
+.idea/
+*.aar
+!android/app/libs/.gitkeep
