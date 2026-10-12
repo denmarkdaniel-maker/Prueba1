@@ -1,0 +1,38 @@
+name: App Samsung Health (APK)
+
+on:
+  push:
+    paths:
+      - "samsung-health/android/**"
+      - ".github/workflows/samsung-health-apk.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: samsung-health/android
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Compilar APK
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleDebug
+          cp app/build/outputs/apk/debug/app-debug.apk SamsungHealthExport.apk
+
+      # El APK queda como "artifact" de la ejecución: se descarga desde la pestaña
+      # Actions de GitHub (viene dentro de un .zip).
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SamsungHealthExport
+          path: samsung-health/android/SamsungHealthExport.apk
+          retention-days: 90

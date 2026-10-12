@@ -1,17 +1,12 @@
 package cl.salud.samsungexport
 
 import android.content.Context
+import android.net.Uri
 import androidx.health.connect.client.HealthConnectClient
-import androidx.health.connect.client.aggregate.AggregateMetric
-import androidx.health.connect.client.aggregate.AggregationResult
 import androidx.health.connect.client.permission.HealthPermission
-import androidx.health.connect.client.records.*
-import androidx.health.connect.client.request.AggregateGroupByPeriodRequest
-import androidx.health.connect.client.time.TimeRangeFilter
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.Period
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
@@ -37,14 +32,18 @@ class HealthExporter(
     private val zone = ZoneId.systemDefault()
     private val stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmm"))
 
-    suspend fun exportAll() {
+    /** Archivos generados en la última exportación (para compartirlos). */
+    private val files = mutableListOf<Uri>()
+
+    suspend fun exportAll(): List<Uri> {
         val granted = client.permissionController.getGrantedPermissions()
         if (HealthPermission.PERMISSION_READ_HEALTH_DATA_HISTORY !in granted) {
             log("⚠ Sin permiso de historial: Health Connect solo entregará los últimos 30 días.")
         }
         exportRecords(granted)
         exportDailySummary(granted)
-        log("✔ Listo. Abre los archivos en Excel o cárgalos en Power BI.")
+        log("✔ Listo. Toca «Compartir CSV» para enviarlos a Claude, Excel o Drive.")
+        return files
     }
 
     private suspend fun exportRecords(granted: Set<String>) {
@@ -67,6 +66,7 @@ class HealthExporter(
                     log("✖ ${spec.nombre}: ${e.message}")
                 }
             }
+            files += csv.uri
             log("Registros guardados en ${csv.location}")
         }
     }
@@ -82,70 +82,15 @@ class HealthExporter(
         )
     }
 
-    /** Columna del resumen diario: métrica de Health Connect + cómo convertirla a número. */
-    private class Column<T : Any>(
-        val header: String,
-        val metric: AggregateMetric<T>,
-        val recordPermission: String,
-        private val toNumber: (T) -> Double,
-    ) {
-        fun read(result: AggregationResult): Double? = result[metric]?.let(toNumber)
-    }
-
-    private fun columns(): List<Column<*>> = listOf(
-        Column("pasos", StepsRecord.COUNT_TOTAL, perm(StepsRecord::class)) { it.toDouble() },
-        Column("distancia_km", DistanceRecord.DISTANCE_TOTAL, perm(DistanceRecord::class)) { it.inKilometers },
-        Column("calorias_activas_kcal", ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL, perm(ActiveCaloriesBurnedRecord::class)) {
-            it.inKilocalories
-        },
-        Column("calorias_totales_kcal", TotalCaloriesBurnedRecord.ENERGY_TOTAL, perm(TotalCaloriesBurnedRecord::class)) {
-            it.inKilocalories
-        },
-        Column("pisos", FloorsClimbedRecord.FLOORS_CLIMBED_TOTAL, perm(FloorsClimbedRecord::class)) { it },
-        Column("fc_promedio_lpm", HeartRateRecord.BPM_AVG, perm(HeartRateRecord::class)) { it.toDouble() },
-        Column("fc_min_lpm", HeartRateRecord.BPM_MIN, perm(HeartRateRecord::class)) { it.toDouble() },
-        Column("fc_max_lpm", HeartRateRecord.BPM_MAX, perm(HeartRateRecord::class)) { it.toDouble() },
-        Column("fc_reposo_lpm", RestingHeartRateRecord.BPM_AVG, perm(RestingHeartRateRecord::class)) { it.toDouble() },
-        Column("sueno_horas", SleepSessionRecord.SLEEP_DURATION_TOTAL, perm(SleepSessionRecord::class)) { it.seconds / 3600.0 },
-        Column("ejercicio_min", ExerciseSessionRecord.EXERCISE_DURATION_TOTAL, perm(ExerciseSessionRecord::class)) {
-            it.seconds / 60.0
-        },
-        Column("peso_kg", WeightRecord.WEIGHT_AVG, perm(WeightRecord::class)) { it.inKilograms },
-    )
-
-    private fun perm(type: kotlin.reflect.KClass<out Record>) = HealthPermission.getReadPermission(type)
-
     private suspend fun exportDailySummary(granted: Set<String>) {
-        val cols = columns().filter { it.recordPermission in granted }
+        val cols = DailySummary.availableColumns(granted)
         if (cols.isEmpty()) return
+        val days = DailySummary.query(client, cols, DESDE, LocalDate.now(zone).plusDays(1)) { log("✖ $it") }
         CsvOutput(context, "salud_resumen_diario_$stamp.csv").use { csv ->
             csv.writeRow("fecha", *cols.map { it.header }.toTypedArray())
-            var days = 0
-            val today = LocalDate.now(zone)
-            var from = DESDE
-            // Se consulta por año para no pedir miles de grupos en una sola llamada
-            while (!from.isAfter(today)) {
-                val to = minOf(from.plusYears(1), today.plusDays(1))
-                try {
-                    val groups = client.aggregateGroupByPeriod(
-                        AggregateGroupByPeriodRequest(
-                            metrics = cols.map { it.metric }.toSet(),
-                            timeRangeFilter = TimeRangeFilter.between(from.atStartOfDay(), to.atStartOfDay()),
-                            timeRangeSlicer = Period.ofDays(1),
-                        )
-                    )
-                    for (g in groups) {
-                        val values = cols.map { it.read(g.result) }
-                        if (values.all { it == null }) continue
-                        csv.writeRow(g.startTime.toLocalDate(), *values.toTypedArray())
-                        days++
-                    }
-                } catch (e: Exception) {
-                    log("✖ Resumen $from → $to: ${e.message}")
-                }
-                from = to
-            }
-            log("· Resumen diario: $days días con datos")
+            for (d in days) csv.writeRow(d.fecha, *cols.map { d[it.header] }.toTypedArray())
+            files += csv.uri
+            log("· Resumen diario: ${days.size} días con datos")
             log("Resumen guardado en ${csv.location}")
         }
     }

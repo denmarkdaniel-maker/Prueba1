@@ -19,12 +19,15 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var status: TextView
     private lateinit var btnExport: Button
+    private lateinit var btnDashboard: Button
+    private lateinit var btnShare: Button
+    private var exported: List<Uri> = emptyList()
     private var client: HealthConnectClient? = null
 
     private val requestPermissions =
         registerForActivityResult(PermissionController.createRequestPermissionResultContract()) { granted ->
             log("Permisos concedidos: ${granted.size} de ${HealthExporter.ALL_PERMISSIONS.size}")
-            btnExport.isEnabled = granted.isNotEmpty()
+            setReady(granted.isNotEmpty())
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -44,11 +47,23 @@ class MainActivity : ComponentActivity() {
             isEnabled = false
             setOnClickListener { export() }
         }
+        btnDashboard = Button(this).apply {
+            text = "3. Ver mi análisis"
+            isEnabled = false
+            setOnClickListener { startActivity(Intent(this@MainActivity, DashboardActivity::class.java)) }
+        }
+        btnShare = Button(this).apply {
+            text = "Compartir CSV (Claude, Excel, Drive…)"
+            isEnabled = false
+            setOnClickListener { share() }
+        }
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(40, 40, 40, 40)
             addView(btnPermissions)
             addView(btnExport)
+            addView(btnDashboard)
+            addView(btnShare)
             addView(status)
         }
         setContentView(ScrollView(this).apply { addView(layout) })
@@ -63,7 +78,7 @@ class MainActivity : ComponentActivity() {
                 lifecycleScope.launch {
                     val granted = c.permissionController.getGrantedPermissions()
                     log("Permisos ya concedidos: ${granted.size} de ${HealthExporter.ALL_PERMISSIONS.size}")
-                    btnExport.isEnabled = granted.isNotEmpty()
+                    setReady(granted.isNotEmpty())
                 }
             }
             HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED -> {
@@ -82,15 +97,30 @@ class MainActivity : ComponentActivity() {
         log("Exportando… (puede tardar varios minutos si hay años de datos)")
         lifecycleScope.launch {
             try {
-                withContext(Dispatchers.IO) {
+                exported = withContext(Dispatchers.IO) {
                     HealthExporter(this@MainActivity, c) { msg -> runOnUiThread { log(msg) } }.exportAll()
                 }
+                btnShare.isEnabled = exported.isNotEmpty()
             } catch (e: Exception) {
                 log("✖ Error: ${e.message}")
             } finally {
                 btnExport.isEnabled = true
             }
         }
+    }
+
+    private fun setReady(ready: Boolean) {
+        btnExport.isEnabled = ready
+        btnDashboard.isEnabled = ready
+    }
+
+    private fun share() {
+        val send = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+            type = "text/csv"
+            putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(exported))
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        startActivity(Intent.createChooser(send, "Enviar datos de salud a…"))
     }
 
     private fun log(msg: String) {

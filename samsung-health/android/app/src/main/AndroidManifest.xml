@@ -52,6 +52,11 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".DashboardActivity"
+            android:label="Mi análisis de salud"
+            android:exported="false" />
+
         <!-- Health Connect exige una pantalla que explique el uso de los datos.
              Android 13 o inferior: -->
         <activity
