@@ -16,12 +16,33 @@ Las dos rutas terminan en archivos que se cargan en Power BI con las consultas d
 
 ---
 
+## Todo desde el celular (sin PC)
+
+1. **Samsung Health → ⋮ → Ajustes → Health Connect** → activa todos los datos.
+2. **Descargar la app** (se compila sola en GitHub cada vez que cambia el código):
+   en el navegador del celular, con tu sesión de GitHub iniciada, abre
+   `https://github.com/denmarkdaniel-maker/Prueba1/actions/workflows/samsung-health-apk.yml`,
+   entra a la última ejecución con ✅ y toca **SamsungHealthExport** (abajo, en *Artifacts*).
+   Se descarga un .zip: ábrelo con **Mis archivos**, extrae `SamsungHealthExport.apk` y tócalo.
+   Android pedirá permitir "instalar apps desconocidas" para Mis archivos: acéptalo.
+   > Para actualizar a una versión nueva, desinstala la anterior primero (tus datos no se pierden:
+   > viven en Samsung Health / Health Connect).
+3. Abre **Exportar Samsung Health**:
+   1. **Conceder permisos** → *Permitir todo* + *Acceder a datos anteriores*.
+   2. **Ver mi análisis** → panel en el teléfono: KPIs del periodo (7, 30, 90 días o 1 año) comparados
+      con el periodo anterior, gráficos de pasos, sueño, FC en reposo, peso y ejercicio,
+      patrón por día de la semana y hallazgos automáticos.
+   3. **Exportar todos mis datos** → CSV completos en *Descargas/SamsungHealth*.
+   4. **Compartir CSV** → envíalos a la app de Claude para un análisis más profundo, a Excel móvil o a Drive.
+
+---
+
 ## Paso previo: activar la sincronización con Health Connect (Ruta A)
 
 1. En el celular abre **Samsung Health → ⋮ → Ajustes → Health Connect**.
 2. Activa el acceso y marca **todos** los tipos de datos para que Samsung Health los *escriba* en Health Connect.
 3. En Android 14 o superior Health Connect ya viene en el sistema (Ajustes → Seguridad y privacidad → Health Connect).
-   En Android 9–13 instala "Health Connect" desde Play Store.
+   En Android 10–13 instala "Health Connect" desde Play Store.
 
 ## Ruta A — App Android (`android/`)
 
@@ -53,8 +74,10 @@ Estructura del código:
 |---|---|
 | `RecordSpecs.kt` | Lista de los 28 tipos de datos que se leen y cómo cada uno se convierte en filas. Para agregar un tipo: una línea aquí + su permiso en `AndroidManifest.xml` |
 | `HealthExporter.kt` | Lee página por página desde 2012 y arma el resumen diario por año con la agregación de Health Connect |
-| `CsvOutput.kt` | Escribe CSV UTF-8 (con BOM para Excel) en Descargas |
-| `MainActivity.kt` | Pantalla con los dos botones y el registro de avance |
+| `CsvOutput.kt` | Escribe CSV UTF-8 (con BOM para Excel) en Descargas (requiere Android 10+) |
+| `MainActivity.kt` | Pantalla principal: permisos, exportar, análisis, compartir |
+| `DailySummary.kt` | Totales diarios sin duplicados (los usan el CSV de resumen y el panel) |
+| `DashboardActivity.kt` / `ChartView.kt` | Panel de análisis en el teléfono con KPIs, gráficos y hallazgos |
 | `PrivacyActivity.kt` | Pantalla de privacidad que Health Connect exige para conceder permisos |
 
 ## Ruta B — Exportación completa + Python (`python/`)
