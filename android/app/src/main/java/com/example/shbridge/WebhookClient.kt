@@ -11,7 +11,7 @@ object WebhookClient {
      * Envía el payload como JSON por POST. Corre en un hilo propio.
      * onDone(ok, detalle) se invoca desde ese hilo; el llamador debe volver al hilo de UI.
      */
-    fun post(url: String, body: JSONObject, onDone: (Boolean, String) -> Unit) {
+    fun post(url: String, token: String, body: JSONObject, onDone: (Boolean, String) -> Unit) {
         thread(name = "webhook-post") {
             try {
                 val conn = (URL(url).openConnection() as HttpURLConnection).apply {
@@ -20,6 +20,7 @@ object WebhookClient {
                     connectTimeout = 15_000
                     readTimeout = 30_000
                     setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                    setRequestProperty("Authorization", "Bearer $token")
                 }
                 conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
 

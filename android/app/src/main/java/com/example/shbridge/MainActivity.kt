@@ -33,8 +33,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun sync() {
-        if (BuildConfig.WEBHOOK_URL.isBlank()) {
-            status.text = "Falta claude.webhookUrl en local.properties"
+        if (BuildConfig.WEBHOOK_URL.isBlank() || BuildConfig.INGEST_TOKEN.isBlank()) {
+            status.text = "Faltan claude.webhookUrl o claude.ingestToken en local.properties"
             return
         }
         if (reader.availability() != HealthConnectClient.SDK_AVAILABLE) {
@@ -53,7 +53,7 @@ class MainActivity : AppCompatActivity() {
                 val payload = withContext(Dispatchers.IO) { reader.readRecent(days = 7) }
 
                 status.text = "Enviando a Claude…"
-                WebhookClient.post(BuildConfig.WEBHOOK_URL, payload) { ok, detail ->
+                WebhookClient.post(BuildConfig.WEBHOOK_URL, BuildConfig.INGEST_TOKEN, payload) { ok, detail ->
                     runOnUiThread {
                         status.text = if (ok) "Enviado a Claude ✓" else "Falló el envío: $detail"
                     }

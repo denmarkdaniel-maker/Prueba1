@@ -11,6 +11,7 @@ val localProps = Properties().apply {
     if (f.exists()) f.inputStream().use { load(it) }
 }
 val webhookUrl: String = localProps.getProperty("claude.webhookUrl", "")
+val ingestToken: String = localProps.getProperty("claude.ingestToken", "")
 
 android {
     namespace = "com.example.shbridge"
@@ -24,6 +25,7 @@ android {
         versionName = "0.1.0"
 
         buildConfigField("String", "WEBHOOK_URL", "\"$webhookUrl\"")
+        buildConfigField("String", "INGEST_TOKEN", "\"$ingestToken\"")
     }
 
     buildFeatures {
