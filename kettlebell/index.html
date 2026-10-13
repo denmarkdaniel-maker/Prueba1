@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!--PWA-->
+<meta name="theme-color" content="#15181c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Girya">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<!--/PWA-->
+<title>Girya Coach</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800;900&family=Barlow:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M7 17C4.8 8 8.5 3 16 3S27.2 8 25 17" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/><path d="M16 11.5c6.4 0 10.5 4.3 10.5 9.6 0 3-1.2 5.6-3.1 7.4H8.6c-1.9-1.8-3.1-4.4-3.1-7.4 0-5.3 4.1-9.6 10.5-9.6z" fill="currentColor"/></svg>
+      <span class="brand-name">Girya</span>
+    </div>
+    <div class="claude-status" id="claudeStatus" data-state="checking">
+      <span class="dot"></span><span class="label">Conectando con Claude…</span>
+    </div>
+  </header>
+
+  <main id="views">
+    <!-- HOY -->
+    <section class="view" id="view-hoy" data-view="hoy">
+      <div class="hero">
+        <div class="hero-stage" id="heroStage"></div>
+        <div class="hero-copy">
+          <p class="eyebrow">Ejercicio del día</p>
+          <h1 class="hero-title" id="heroTitle">Swing ruso</h1>
+          <p class="hero-meta" id="heroMeta"></p>
+          <div class="row gap-s">
+            <button class="btn btn-primary" id="heroOpen" type="button">Entrenar ahora</button>
+            <button class="btn btn-ghost" id="heroNext" type="button" aria-label="Ver otro ejercicio">Otro</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="stats" id="weekStats"></div>
+
+      <div class="card coach-cta" id="coachCta">
+        <div>
+          <p class="eyebrow">Coach Claude</p>
+          <p class="coach-cta-text">Pídele una rutina, que analice tu semana o que registre tus series por ti.</p>
+        </div>
+        <button class="btn btn-primary" type="button" data-goto="coach">Hablar con Claude</button>
+      </div>
+
+      <div class="section-head">
+        <h2>Últimos registros</h2>
+        <button class="link" type="button" data-goto="historial">Ver todo</button>
+      </div>
+      <ul class="log-list" id="recentList"></ul>
+    </section>
+
+    <!-- EJERCICIOS -->
+    <section class="view" id="view-ejercicios" data-view="ejercicios" hidden>
+      <div class="section-head sticky-head">
+        <h2>50 ejercicios</h2>
+        <span class="count" id="exCount"></span>
+      </div>
+      <label class="search">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <input id="exSearch" type="search" placeholder="Buscar ejercicio o músculo" autocomplete="off">
+      </label>
+      <div class="chips" id="catChips" role="tablist" aria-label="Categorías"></div>
+      <div class="ex-grid" id="exGrid"></div>
+    </section>
+
+    <!-- HISTORIAL -->
+    <section class="view" id="view-historial" data-view="historial" hidden>
+      <div class="section-head">
+        <h2>Historial</h2>
+        <button class="btn btn-small btn-ghost" id="btnCsv" type="button">Exportar CSV</button>
+      </div>
+      <div class="card chart-card">
+        <div class="chart-head">
+          <p class="eyebrow">Volumen semanal</p>
+          <p class="chart-sub">kg levantados = series × reps × peso</p>
+        </div>
+        <div id="weekChart" class="chart"></div>
+      </div>
+      <div id="historyList"></div>
+    </section>
+
+    <!-- COACH -->
+    <section class="view view-coach" id="view-coach" data-view="coach" hidden>
+      <div class="coach-head">
+        <div class="coach-avatar" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M12 2.5l1.9 6.1 6.1 1.9-6.1 1.9L12 18.5l-1.9-6.1-6.1-1.9 6.1-1.9z" fill="currentColor"/></svg>
+        </div>
+        <div>
+          <h2>Coach Claude</h2>
+          <p class="coach-sub" id="coachSub">Conoce tus 50 ejercicios y tu historial.</p>
+        </div>
+      </div>
+      <div class="chat" id="chat" aria-live="polite"></div>
+      <div class="quick" id="quickPrompts"></div>
+      <form class="composer" id="composer" autocomplete="off">
+        <textarea id="composerInput" rows="1" placeholder="Escribe a tu coach…"></textarea>
+        <button class="btn btn-primary btn-icon" id="composerSend" type="submit" aria-label="Enviar">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l16-8-6 16-2.5-6.5z" fill="currentColor"/></svg>
+        </button>
+      </form>
+      <div class="offline-claude" id="offlineClaude" hidden>
+        <p>Estás usando Girya fuera de la app de Claude. Envía tu contexto a Claude con un toque:</p>
+        <div class="row gap-s wrap">
+          <a class="btn btn-primary" id="openInClaude" href="https://claude.ai/new" target="_blank" rel="noopener">Abrir en Claude</a>
+          <button class="btn btn-ghost" id="copyForClaude" type="button">Copiar resumen</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabbar" aria-label="Secciones">
+    <button type="button" class="tab is-active" data-goto="hoy"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z" fill="currentColor"/></svg><span>Hoy</span></button>
+    <button type="button" class="tab" data-goto="ejercicios"><svg viewBox="0 0 24 24" aria-hidden="true"><g transform="scale(.75)"><path d="M7 17C4.8 8 8.5 3 16 3S27.2 8 25 17" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/><path d="M16 11.5c6.4 0 10.5 4.3 10.5 9.6 0 3-1.2 5.6-3.1 7.4H8.6c-1.9-1.8-3.1-4.4-3.1-7.4 0-5.3 4.1-9.6 10.5-9.6z" fill="currentColor"/></g></svg><span>Ejercicios</span></button>
+    <button type="button" class="tab" data-goto="historial"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10h3v10zm6.5 0V4h3v16zM17 20v-7h3v7z" fill="currentColor"/></svg><span>Historial</span></button>
+    <button type="button" class="tab" data-goto="coach"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l1.9 6.1 6.1 1.9-6.1 1.9L12 18.5l-1.9-6.1-6.1-1.9 6.1-1.9z" fill="currentColor"/></svg><span>Claude</span></button>
+  </nav>
+
+  <!-- DETALLE -->
+  <div class="sheet" id="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="dTitle">
+    <div class="sheet-stage">
+      <div class="stage3d" id="detailStage"></div>
+      <button class="icon-btn sheet-close" id="sheetClose" type="button" aria-label="Cerrar">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+      </button>
+      <div class="stage-controls">
+        <button class="pill" id="ctlPlay" type="button" aria-label="Pausar">Pausa</button>
+        <button class="pill" id="ctlSpeed" type="button">1×</button>
+        <button class="pill" id="ctlDouble" type="button" hidden>2 pesas</button>
+        <span class="drag-hint">Arrastra para girar</span>
+      </div>
+    </div>
+    <div class="sheet-body">
+      <p class="eyebrow" id="dCat"></p>
+      <h2 class="d-title" id="dTitle"></h2>
+      <p class="d-en" id="dEn"></p>
+      <div class="tags" id="dTags"></div>
+      <p class="d-desc" id="dDesc"></p>
+
+      <div class="logger card" id="logger">
+        <div class="logger-head">
+          <h3>Registrar</h3>
+          <span class="suggest" id="dSuggest"></span>
+        </div>
+        <div class="steppers">
+          <div class="stepper">
+            <span class="stepper-label">Series</span>
+            <div class="stepper-ctl">
+              <button type="button" class="step" data-step="series" data-d="-1" aria-label="Menos series">−</button>
+              <input id="inSeries" inputmode="numeric" type="number" min="1" max="99" value="3" aria-label="Series">
+              <button type="button" class="step" data-step="series" data-d="1" aria-label="Más series">+</button>
+            </div>
+          </div>
+          <div class="stepper">
+            <span class="stepper-label" id="repsLabel">Reps</span>
+            <div class="stepper-ctl">
+              <button type="button" class="step" data-step="reps" data-d="-1" aria-label="Menos repeticiones">−</button>
+              <input id="inReps" inputmode="numeric" type="number" min="1" max="999" value="10" aria-label="Repeticiones">
+              <button type="button" class="step" data-step="reps" data-d="1" aria-label="Más repeticiones">+</button>
+            </div>
+          </div>
+        </div>
+        <div class="weight-block">
+          <div class="weight-head">
+            <span class="stepper-label">Peso de la kettlebell</span>
+            <span class="weight-now"><b id="weightNow">16</b> kg</span>
+          </div>
+          <div class="weights" id="weights" role="radiogroup" aria-label="Peso en kg"></div>
+          <p class="weight-note">Colores del estándar de competición (girevoy sport). Los pesos intermedios se muestran como hierro fundido.</p>
+        </div>
+        <label class="notes">
+          <span class="stepper-label">Notas</span>
+          <input id="inNotes" type="text" maxlength="140" placeholder="Opcional: cómo te sentiste, RPE, técnica">
+        </label>
+
+        <div class="tracker" id="tracker" hidden>
+          <div class="tracker-sets" id="trackerSets"></div>
+          <div class="rest" id="restBox" hidden>
+            <span class="rest-label">Descanso</span>
+            <span class="rest-time" id="restTime">0:60</span>
+            <button type="button" class="link" id="restSkip">Saltar</button>
+          </div>
+        </div>
+
+        <div class="logger-actions">
+          <button class="btn btn-ghost" id="btnTrack" type="button">Contar series</button>
+          <button class="btn btn-primary" id="btnSave" type="button">Guardar</button>
+        </div>
+      </div>
+
+      <div class="cols">
+        <div>
+          <h3 class="mini-head">Claves técnicas</h3>
+          <ol class="cues" id="dCues"></ol>
+        </div>
+        <div>
+          <h3 class="mini-head">Errores comunes</h3>
+          <ul class="errs" id="dErrs"></ul>
+        </div>
+      </div>
+      <button class="btn btn-ghost btn-block" id="askAbout" type="button">Preguntarle a Claude por este ejercicio</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="js/exercises.js"></script>
+<script src="js/kb3d.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
