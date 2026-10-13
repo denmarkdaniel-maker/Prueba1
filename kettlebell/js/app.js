@@ -328,7 +328,8 @@
     if (detailViewer) detailViewer.setColors(sceneColors(kg));
     if (scroll) {
       var on = document.querySelector('.wchip[aria-checked="true"]');
-      if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+      var box = $('#weights');
+      if (on) box.scrollLeft = on.offsetLeft - box.offsetLeft - (box.clientWidth - on.offsetWidth) / 2;
     }
   }
   function openSheet(id, preset) {
